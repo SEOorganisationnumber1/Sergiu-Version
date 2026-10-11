@@ -1,261 +1,234 @@
 import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import type { Timer as ThreeTimerInstance } from 'three';
+import type { WebGLRendererInstance } from './threeRuntime';
 
-interface ThreeCanvasProps {
-  isDarkMode: boolean;
-}
+interface ThreeCanvasProps { isDarkMode: boolean; snapSignal: number }
 
-export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ isDarkMode }) => {
+export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ isDarkMode, snapSignal }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const snapRef = useRef(snapSignal);
+  const darkModeRef = useRef(isDarkMode);
+  useEffect(() => { snapRef.current = snapSignal; }, [snapSignal]);
+  useEffect(() => { darkModeRef.current = isDarkMode; }, [isDarkMode]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    // Decorative WebGL motion is unnecessary when the visitor asks to reduce motion.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let disposed = false;
+    let renderer: WebGLRendererInstance | undefined;
+    let timer: ThreeTimerInstance | undefined;
+    let raf = 0;
+    let resizeObserver: ResizeObserver | undefined;
+    let intersectionObserver: IntersectionObserver | undefined;
+    let isInView = true;
+    let pointerX = 0;
+    let pointerY = 0;
+    let targetPointerX = 0;
+    let targetPointerY = 0;
+    let onPointerMove: ((event: Event) => void) | undefined;
+    let onPointerLeave: (() => void) | undefined;
+    let onVisibilityChange: (() => void) | undefined;
+    const resources: Array<{ dispose: () => void }> = [];
+    let animate: FrameRequestCallback = () => undefined;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const start = window.setTimeout(async () => {
+      if (disposed || !container.isConnected) return;
+      try {
+        const THREE = await import('./threeRuntime');
+        if (disposed) return;
+        const mobile = window.innerWidth < 700;
+        const dark = darkModeRef.current;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+        camera.position.set(0, mobile ? 7.5 : 8.5, mobile ? 19 : 20);
+        camera.lookAt(0, 0, 0);
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.1 : 1.3));
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setClearColor(0x000000, 0);
+        container.appendChild(renderer.domElement);
 
-    // Scene
-    const scene = new THREE.Scene();
+        // A sculpted search visibility field: query clusters rise through ranking strata over time.
+        const columns = mobile ? 24 : 42;
+        const rows = mobile ? 18 : 28;
+        const width = mobile ? 13 : 17;
+        const depth = mobile ? 9 : 11;
+        const surface: Array<[number, number, number]> = [];
+        const linePositions: number[] = [];
+        const nodePositions: number[] = [];
+        const at = (row: number, col: number) => row * columns + col;
+        for (let row = 0; row < rows; row++) {
+          const z = (row / (rows - 1) - 0.5) * depth;
+          for (let col = 0; col < columns; col++) {
+            const x = (col / (columns - 1) - 0.5) * width;
+            const progress = col / (columns - 1);
+            const queryPeak = Math.exp(-((progress - 0.72) ** 2) / 0.035 - ((z + 0.5) ** 2) / 11) * 2.15;
+            const secondPeak = Math.exp(-((progress - 0.4) ** 2) / 0.06 - ((z - 2.1) ** 2) / 7) * 0.9;
+            const contour = Math.sin(progress * Math.PI * 2.2 + z * 0.42) * 0.12;
+            const y = -1.7 + progress * 2.2 + queryPeak + secondPeak + contour;
+            const point: [number, number, number] = [x, y, z];
+            surface.push(point);
+            nodePositions.push(...point);
+          }
+        }
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < columns; col++) {
+            const point = surface[at(row, col)];
+            if (col < columns - 1) linePositions.push(...point, ...surface[at(row, col + 1)]);
+            if (row < rows - 1 && row % 3 === 0) linePositions.push(...point, ...surface[at(row + 1, col)]);
+          }
+        }
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7.5);
+        const fieldGeometry = new THREE.BufferGeometry();
+        resources.push(fieldGeometry);
+        fieldGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nodePositions), 3));
+        const fieldMaterial = new THREE.PointsMaterial({ color: dark ? 0x29e9df : 0x087a80, size: mobile ? 0.062 : 0.072, transparent: true, opacity: dark ? 0.74 : 0.57, depthWrite: false, sizeAttenuation: true });
+        resources.push(fieldMaterial);
+        const field = new THREE.Points(fieldGeometry, fieldMaterial);
+        scene.add(field);
 
-    // High performance renderer with tone mapping
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: 'high-performance',
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+        const gridGeometry = new THREE.BufferGeometry();
+        resources.push(gridGeometry);
+        gridGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linePositions), 3));
+        const gridMaterial = new THREE.LineBasicMaterial({ color: dark ? 0x00cfc8 : 0x157d83, transparent: true, opacity: dark ? 0.105 : 0.075, depthWrite: false });
+        resources.push(gridMaterial);
+        const grid = new THREE.LineSegments(gridGeometry, gridMaterial);
+        scene.add(grid);
 
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-    container.appendChild(renderer.domElement);
+        // The emphasized growth path threads upward through the query field.
+        const path: number[] = [];
+        for (let step = 0; step < 88; step++) {
+          const x = (step / 87 - 0.5) * width;
+          const progress = step / 87;
+          const z = -0.8 + Math.sin(progress * Math.PI * 4) * 0.28;
+          const y = -1.55 + progress * 2.2 + Math.exp(-((progress - 0.72) ** 2) / 0.035) * 2.15 + 0.05;
+          path.push(x, y, z);
+        }
+        const signalGeometry = new THREE.BufferGeometry();
+        resources.push(signalGeometry);
+        signalGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(path), 3));
+        const signalMaterial = new THREE.LineBasicMaterial({ color: dark ? 0x34fff0 : 0x00a7a1, transparent: true, opacity: dark ? 0.82 : 0.68 });
+        resources.push(signalMaterial);
+        const signal = new THREE.Line(signalGeometry, signalMaterial);
+        scene.add(signal);
 
-    // Group for the entire Search Engine & Growth Hologram
-    const rootGroup = new THREE.Group();
-    scene.add(rootGroup);
+        // Small, fixed ambient query signals keep the canvas alive without adding a second focal object.
+        const glints = new Float32Array((mobile ? 38 : 90) * 3);
+        for (let i = 0; i < glints.length; i += 3) {
+          glints[i] = (Math.random() - 0.5) * (mobile ? 13 : 20);
+          glints[i + 1] = (Math.random() - 0.5) * 6;
+          glints[i + 2] = (Math.random() - 0.5) * 12;
+        }
+        const glintGeometry = new THREE.BufferGeometry();
+        resources.push(glintGeometry);
+        glintGeometry.setAttribute('position', new THREE.BufferAttribute(glints, 3));
+        const glintMaterial = new THREE.PointsMaterial({ color: dark ? 0x16dcd4 : 0x16777b, size: 0.04, transparent: true, opacity: dark ? 0.32 : 0.2, depthWrite: false });
+        resources.push(glintMaterial);
+        scene.add(new THREE.Points(glintGeometry, glintMaterial));
 
-    // 1. Central "Search Index Core Sphere" (representing search engine database & semantic web)
-    const coreGeo = new THREE.IcosahedronGeometry(1.35, 3);
-    const coreMat = new THREE.MeshPhysicalMaterial({
-      color: isDarkMode ? 0x00cfc8 : 0x07111e,
-      emissive: isDarkMode ? 0x003e3a : 0x011b22,
-      metalness: 0.9,
-      roughness: 0.15,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.1,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-    rootGroup.add(coreMesh);
-
-    // 2. Geodesic Search Lattice Wireframe (Web Crawler Index Grid)
-    const latticeGeo = new THREE.WireframeGeometry(coreGeo);
-    const latticeMat = new THREE.LineBasicMaterial({
-      color: isDarkMode ? 0x00cfc8 : 0x00baa7,
-      transparent: true,
-      opacity: isDarkMode ? 0.45 : 0.65,
-    });
-    const latticeMesh = new THREE.LineSegments(latticeGeo, latticeMat);
-    latticeMesh.scale.set(1.003, 1.003, 1.003);
-    coreMesh.add(latticeMesh);
-
-    // 3. Orbiting Data Ring 1: "Crawler & Keyword Index Pipeline"
-    const ring1Geo = new THREE.TorusGeometry(2.1, 0.025, 16, 100);
-    const ring1Mat = new THREE.MeshStandardMaterial({
-      color: 0x00cfc8,
-      emissive: 0x00cfc8,
-      emissiveIntensity: 0.8,
-      roughness: 0.2,
-    });
-    const ring1 = new THREE.Mesh(ring1Geo, ring1Mat);
-    ring1.rotation.x = Math.PI / 3;
-    rootGroup.add(ring1);
-
-    // 4. Orbiting Data Ring 2: "Algorithmic Growth & PageRank Helix"
-    const ring2Geo = new THREE.TorusGeometry(2.4, 0.022, 16, 100);
-    const ring2Mat = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? 0x10b981 : 0x059669,
-      emissive: isDarkMode ? 0x059669 : 0x047857,
-      emissiveIntensity: 0.6,
-      roughness: 0.2,
-    });
-    const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
-    ring2.rotation.y = Math.PI / 4;
-    ring2.rotation.x = -Math.PI / 6;
-    rootGroup.add(ring2);
-
-    // 5. Orbiting Data Ring 3: "Core Web Vitals & Speed Axis"
-    const ring3Geo = new THREE.TorusGeometry(2.7, 0.018, 16, 100);
-    const ring3Mat = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? 0x38bdf8 : 0x0284c7,
-      emissive: isDarkMode ? 0x0284c7 : 0x0369a1,
-      emissiveIntensity: 0.5,
-      roughness: 0.3,
-    });
-    const ring3 = new THREE.Mesh(ring3Geo, ring3Mat);
-    ring3.rotation.z = Math.PI / 3;
-    ring3.rotation.y = Math.PI / 6;
-    rootGroup.add(ring3);
-
-    // 6. Orbiting Search Data Satellites / Ranking Nodes
-    const satelliteCount = 5;
-    const satellites: THREE.Mesh[] = [];
-    const satGeo = new THREE.SphereGeometry(0.1, 16, 16);
-    const satMat = new THREE.MeshStandardMaterial({
-      color: 0x00cfc8,
-      emissive: 0x00cfc8,
-      emissiveIntensity: 1.5,
-    });
-
-    for (let i = 0; i < satelliteCount; i++) {
-      const sat = new THREE.Mesh(satGeo, satMat);
-      rootGroup.add(sat);
-      satellites.push(sat);
-    }
-
-    // 7. Floating Organic Traffic Data Stream (Particles)
-    const particleCount = 220;
-    const particlePositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount * 3; i += 3) {
-      const radius = 2.2 + Math.random() * 2.5;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = (Math.random() - 0.5) * Math.PI;
-
-      particlePositions[i] = radius * Math.cos(theta) * Math.cos(phi);
-      particlePositions[i + 1] = radius * Math.sin(phi);
-      particlePositions[i + 2] = radius * Math.sin(theta) * Math.cos(phi);
-    }
-
-    const particleGeo = new THREE.BufferGeometry();
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({
-      size: 0.045,
-      color: isDarkMode ? 0x00cfc8 : 0x0f766e,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending,
-    });
-    const particleSystem = new THREE.Points(particleGeo, particleMat);
-    rootGroup.add(particleSystem);
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, isDarkMode ? 0.7 : 1.3);
-    scene.add(ambientLight);
-
-    const cyanLight = new THREE.PointLight(0x00cfc8, 10, 20);
-    cyanLight.position.set(4, 3, 4);
-    scene.add(cyanLight);
-
-    const greenLight = new THREE.PointLight(0x10b981, 7, 20);
-    greenLight.position.set(-4, -3, 3);
-    scene.add(greenLight);
-
-    // Mouse Tracking with Inertial Physics
-    let targetRotX = 0;
-    let targetRotY = 0;
-    let curRotX = 0;
-    let curRotY = 0;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-      targetRotX = y * 0.7;
-      targetRotY = x * 0.9;
-    };
-
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-
-    const handleResize = () => {
-      if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Animation Loop
-    let clock = new THREE.Clock();
-    let reqId: number | null = null;
-
-    const animate = () => {
-      const t = clock.getElapsedTime();
-
-      // Lerp mouse rotation
-      curRotX += (targetRotX - curRotX) * 0.05;
-      curRotY += (targetRotY - curRotY) * 0.05;
-
-      rootGroup.rotation.x = curRotX + Math.sin(t * 0.6) * 0.08;
-      rootGroup.rotation.y = curRotY + t * 0.25;
-
-      // Independent ring rotations mimicking dynamic search algorithms
-      ring1.rotation.z = t * 0.5;
-      ring2.rotation.x = -Math.PI / 6 + t * 0.4;
-      ring3.rotation.y = Math.PI / 6 + t * 0.35;
-
-      // Pulse core sphere scale gently
-      const pulse = 1 + Math.sin(t * 2) * 0.025;
-      coreMesh.scale.set(pulse, pulse, pulse);
-
-      // Position satellites along orbital paths
-      satellites.forEach((sat, idx) => {
-        const offset = (idx * Math.PI * 2) / satelliteCount;
-        const speed = 0.7;
-        const r = 2.1;
-        sat.position.x = Math.cos(t * speed + offset) * r;
-        sat.position.y = Math.sin((t * speed + offset) * 2) * 0.4;
-        sat.position.z = Math.sin(t * speed + offset) * r;
-      });
-
-      // Slowly rotate particle data stream
-      particleSystem.rotation.y = t * 0.08;
-      particleSystem.rotation.x = t * 0.04;
-
-      renderer.render(scene, camera);
-      reqId = requestAnimationFrame(animate);
-    };
-
-    reqId = requestAnimationFrame(animate);
+        const interactionArea = container.closest('.hero-stage') ?? container;
+        onPointerMove = (rawEvent: Event) => {
+          const event = rawEvent as PointerEvent;
+          const bounds = interactionArea.getBoundingClientRect();
+          if (!bounds.width || !bounds.height) return;
+          const x = Math.max(-1, Math.min(1, ((event.clientX - bounds.left) / bounds.width - 0.5) * 2));
+          const y = Math.max(-1, Math.min(1, ((event.clientY - bounds.top) / bounds.height - 0.5) * 2));
+          targetPointerX = x * 0.072;
+          targetPointerY = -y * 0.052;
+        };
+        onPointerLeave = () => { targetPointerX = 0; targetPointerY = 0; };
+        if (!mobile) {
+          interactionArea.addEventListener('pointermove', onPointerMove, { passive: true });
+          interactionArea.addEventListener('pointerleave', onPointerLeave, { passive: true });
+        }
+        let lastSnap = snapRef.current;
+        let snapAt = -100;
+        let lastFrame = 0;
+        const frameInterval = 1000 / (mobile ? 30 : 45);
+        timer = new THREE.Timer();
+        timer.connect(document);
+        let previousDark = dark;
+        const applyTheme = (nextDark: boolean) => {
+          fieldMaterial.color.setHex(nextDark ? 0x29e9df : 0x087a80);
+          fieldMaterial.opacity = nextDark ? 0.74 : 0.57;
+          gridMaterial.color.setHex(nextDark ? 0x00cfc8 : 0x157d83);
+          gridMaterial.opacity = nextDark ? 0.105 : 0.075;
+          signalMaterial.color.setHex(nextDark ? 0x34fff0 : 0x00a7a1);
+          glintMaterial.color.setHex(nextDark ? 0x16dcd4 : 0x16777b);
+        };
+        const resize = () => {
+          if (!renderer) return;
+          camera.aspect = container.clientWidth / Math.max(container.clientHeight, 1);
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
+        };
+        resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(container);
+        animate = (timestamp) => {
+          raf = 0;
+          if (disposed || !renderer || !isInView || document.hidden) return;
+          if (timestamp - lastFrame < frameInterval) {
+            raf = requestAnimationFrame(animate);
+            return;
+          }
+          lastFrame = timestamp;
+          if (document.documentElement.classList.contains('theme-transitioning')) {
+            raf = requestAnimationFrame(animate);
+            return;
+          }
+          timer?.update();
+          const time = timer?.getElapsed() ?? 0;
+          if (previousDark !== darkModeRef.current) { previousDark = darkModeRef.current; applyTheme(previousDark); }
+          if (snapRef.current !== lastSnap) { lastSnap = snapRef.current; snapAt = time; }
+          const pulse = Math.max(0, 1 - (time - snapAt) / 0.75);
+          // Keep the SEO field stable; only add a barely perceptible, eased response to local Hero movement.
+          pointerX += (targetPointerX - pointerX) * 0.075;
+          pointerY += (targetPointerY - pointerY) * 0.075;
+          scene.rotation.y = pointerX;
+          scene.rotation.x = pointerY;
+          signalMaterial.opacity = (previousDark ? 0.82 : 0.68) + pulse * 0.16;
+          signal.position.y = Math.sin(time * 0.65) * 0.035;
+          renderer.render(scene, camera);
+          raf = requestAnimationFrame(animate);
+        };
+        intersectionObserver = new IntersectionObserver(([entry]) => {
+          isInView = entry.isIntersecting;
+          if (isInView && !document.hidden && !raf) raf = requestAnimationFrame(animate);
+          else if (!isInView && raf) { cancelAnimationFrame(raf); raf = 0; }
+        }, { rootMargin: '100px' });
+        intersectionObserver.observe(container);
+        onVisibilityChange = () => {
+          if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+          else if (isInView && !raf) raf = requestAnimationFrame(animate);
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        raf = requestAnimationFrame(animate);
+      } catch {
+        if (renderer) { renderer.dispose(); if (renderer.domElement.parentNode === container) container.removeChild(renderer.domElement); }
+        container.classList.add('webgl-unavailable');
+      }
+    }, 180);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
-      if (reqId) cancelAnimationFrame(reqId);
-      coreGeo.dispose();
-      coreMat.dispose();
-      latticeGeo.dispose();
-      latticeMat.dispose();
-      ring1Geo.dispose();
-      ring1Mat.dispose();
-      ring2Geo.dispose();
-      ring2Mat.dispose();
-      ring3Geo.dispose();
-      ring3Mat.dispose();
-      satGeo.dispose();
-      satMat.dispose();
-      particleGeo.dispose();
-      particleMat.dispose();
-      renderer.dispose();
+      disposed = true;
+      window.clearTimeout(start);
+      cancelAnimationFrame(raf);
+      if (onPointerMove) {
+        const interactionArea = container.closest('.hero-stage') ?? container;
+        interactionArea.removeEventListener('pointermove', onPointerMove);
+        if (onPointerLeave) interactionArea.removeEventListener('pointerleave', onPointerLeave);
+      }
+      if (onVisibilityChange) document.removeEventListener('visibilitychange', onVisibilityChange);
+      resizeObserver?.disconnect();
+      intersectionObserver?.disconnect();
+      renderer?.dispose();
+      timer?.dispose();
+      resources.forEach((resource) => resource.dispose());
+      if (renderer?.domElement.parentNode === container) container.removeChild(renderer.domElement);
     };
-  }, [isDarkMode]);
+  }, []);
 
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full min-h-[380px] lg:min-h-[520px] relative pointer-events-auto cursor-grab active:cursor-grabbing select-none"
-      data-cursor="drag"
-    />
-  );
+  return <div ref={containerRef} className="neural-canvas" aria-hidden="true" />;
 };

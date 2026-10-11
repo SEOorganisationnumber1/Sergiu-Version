@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowUpRight } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 
-export const Footer: React.FC<{ onOpenProjectModal: () => void }> = ({ onOpenProjectModal }) => {
+export const Footer: React.FC<{ onOpenProjectModal: () => void; onNavigatePath: (path: string) => void; isPricingPage?: boolean }> = ({ onOpenProjectModal, onNavigatePath, isPricingPage = false }) => {
   const [clocks, setClocks] = useState<{ [city: string]: string }>({});
 
   useEffect(() => {
@@ -39,19 +39,26 @@ export const Footer: React.FC<{ onOpenProjectModal: () => void }> = ({ onOpenPro
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const sectionHref = (id: string) => `${isPricingPage ? '/' : ''}#${id}`;
+  const navigateInternal = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!href.startsWith('/')) return;
+    event.preventDefault();
+    onNavigatePath(href);
+  };
+
   return (
-    <footer className="pt-24 pb-12 border-t border-neutral-300/60 dark:border-neutral-800/80 bg-[#f2f5f8] dark:bg-[#070b12] relative overflow-hidden">
+    <footer className="site-footer pt-24 pb-12 bg-[var(--bg-color)] relative overflow-hidden">
       <div className="max-w-[1680px] mx-auto px-4 sm:px-8 lg:px-12">
         
         {/* Massive Call To Action Banner */}
         <div className="pb-20 border-b border-neutral-300/60 dark:border-neutral-800/80 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
           <div className="lg:col-span-8">
-            <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8] font-bold block mb-4">
+            <span className="text-xs font-mono uppercase tracking-widest text-[#00736e] dark:text-[#55bcb7] font-bold block mb-4">
               COMMISSIONS CALENDAR OPEN FOR 2026
             </span>
-            <h2 className="text-5xl sm:text-7xl lg:text-8xl font-black uppercase tracking-tight text-[#070b12] dark:text-white leading-[0.92]">
+            <h2 className="section-display-title text-5xl sm:text-7xl lg:text-8xl font-black uppercase tracking-tight text-[#070b12] dark:text-white leading-[0.92]">
               HAVE A VISION? <br />
-              <span className="text-[#00cfc8]">LET'S TALK.</span>
+              <span className="text-[#00736e] dark:text-[#55bcb7]">LET'S TALK.</span>
             </h2>
           </div>
 
@@ -97,11 +104,12 @@ export const Footer: React.FC<{ onOpenProjectModal: () => void }> = ({ onOpenPro
               NAVIGATION
             </h4>
             <ul className="space-y-2 text-neutral-700 dark:text-neutral-300">
-              <li><a href="#work" className="hover:text-[#00cfc8] transition-colors">Selected Work</a></li>
-              <li><a href="#services" className="hover:text-[#00cfc8] transition-colors">Core Disciplines</a></li>
-              <li><a href="#clients" className="hover:text-[#00cfc8] transition-colors">Client Roster</a></li>
-              <li><a href="#studio" className="hover:text-[#00cfc8] transition-colors">Studio Manifesto</a></li>
-              <li><a href="#insights" className="hover:text-[#00cfc8] transition-colors">Journal &amp; Dispatches</a></li>
+              <li><a href={sectionHref('services')} onClick={(event) => navigateInternal(event, sectionHref('services'))} className="hover:text-[#00cfc8] transition-colors">Core Disciplines</a></li>
+              <li><a href="/pricing" onClick={(event) => navigateInternal(event, '/pricing')} className="hover:text-[#00cfc8] transition-colors">Pricing &amp; Plans</a></li>
+              <li><a href={sectionHref('work')} onClick={(event) => navigateInternal(event, sectionHref('work'))} className="hover:text-[#00cfc8] transition-colors">Selected Work</a></li>
+              <li><a href={sectionHref('clients')} onClick={(event) => navigateInternal(event, sectionHref('clients'))} className="hover:text-[#00cfc8] transition-colors">Client Roster</a></li>
+              <li><a href={sectionHref('studio')} onClick={(event) => navigateInternal(event, sectionHref('studio'))} className="hover:text-[#00cfc8] transition-colors">Studio Manifesto</a></li>
+              <li><a href={sectionHref('insights')} onClick={(event) => navigateInternal(event, sectionHref('insights'))} className="hover:text-[#00cfc8] transition-colors">Journal &amp; Dispatches</a></li>
             </ul>
           </div>
 

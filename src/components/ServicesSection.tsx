@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Zap, Cpu, Compass, Rocket, Search, Plus, ArrowUpRight } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 
@@ -100,24 +100,35 @@ const SERVICES: ServiceItem[] = [
 export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ onOpenProjectModal }) => {
   const [expandedId, setExpandedId] = useState<string>('s1');
 
+  useEffect(() => {
+    const openService = (event: Event) => {
+      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      if (!SERVICES.some((service) => service.id === id)) return;
+      setExpandedId(id);
+      window.setTimeout(() => document.getElementById(`service-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+    };
+    window.addEventListener('nxt:open-service', openService);
+    return () => window.removeEventListener('nxt:open-service', openService);
+  }, []);
+
   const toggleService = (id: string) => {
     sounds.playClick();
     setExpandedId((prev) => (prev === id ? '' : id));
   };
 
   return (
-    <section id="services" className="py-24 sm:py-32 border-b border-neutral-300/60 dark:border-neutral-800/80 relative">
+    <section id="services" className="py-20 sm:py-24 border-b border-neutral-300/60 dark:border-neutral-800/80 relative">
       <div className="max-w-[1680px] mx-auto px-4 sm:px-8 lg:px-12">
         
         {/* Section Header */}
         <div className="max-w-3xl mb-16">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-2 h-2 rounded-full bg-[#00cfc8]" />
-            <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8] font-bold">
+            <span className="text-xs font-mono uppercase tracking-widest text-[#00736e] dark:text-[#00cfc8] font-bold">
               CORE COMPETENCIES &amp; DISCIPLINES
             </span>
           </div>
-          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
+          <h2 className="section-display-title text-4xl sm:text-6xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
             WE CRAFT DIGITAL WEAPONS FOR DISRUPTORS.
           </h2>
           <p className="mt-4 text-neutral-600 dark:text-neutral-400 text-lg leading-relaxed">
@@ -126,24 +137,35 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
         </div>
 
         {/* Accordion / Matrix Container */}
-        <div className="border-t border-neutral-300/80 dark:border-neutral-800">
+        <div className="space-y-3">
           {SERVICES.map((s) => {
             const isExpanded = expandedId === s.id;
             return (
               <div
                 key={s.id}
-                className={`border-b border-neutral-300/80 dark:border-neutral-800 transition-colors duration-300 ${
+                className={`premium-surface overflow-hidden rounded-[24px] border border-neutral-300/80 dark:border-neutral-800 transition-colors duration-300 ${
                   isExpanded ? 'bg-white/60 dark:bg-[#0b1019]/60' : 'hover:bg-neutral-200/30 dark:hover:bg-neutral-900/30'
                 }`}
               >
                 {/* Header Row */}
                 <div
                   onClick={() => toggleService(s.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleService(s.id);
+                    }
+                  }}
                   onMouseEnter={() => sounds.playHover()}
-                  className="py-8 px-4 sm:px-6 flex items-center justify-between cursor-pointer select-none group"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-controls={`service-panel-${s.id}`}
+                  id={`service-${s.id}`}
+                  className="py-8 px-4 sm:px-6 flex items-center justify-between cursor-pointer select-none group scroll-mt-28"
                 >
                   <div className="flex items-center gap-4 sm:gap-8">
-                    <span className="font-mono text-lg sm:text-xl font-bold text-[#00cfc8]">
+                    <span className="font-mono text-lg sm:text-xl font-bold text-[#00736e] dark:text-[#00cfc8]">
                       {s.num}
                     </span>
                     <div>
@@ -163,7 +185,7 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
                     
                     {/* Animated Smooth Plus/Minus Toggle Button */}
                     <div
-                      className={`w-10 h-10 border flex items-center justify-center transition-all duration-300 ${
+                      className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all duration-300 ${
                         isExpanded
                           ? 'bg-[#00cfc8] text-[#070b12] border-[#00cfc8] rotate-45 shadow-md shadow-[#00cfc8]/30'
                           : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 rotate-0 group-hover:border-[#00cfc8]'
@@ -176,6 +198,7 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
 
                 {/* Smooth CSS Grid Height Transition Container */}
                 <div
+                  id={`service-panel-${s.id}`}
                   className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                     isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                   }`}
@@ -200,8 +223,8 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
                         </div>
                       </div>
 
-                      <div className="lg:col-span-6 bg-neutral-100 dark:bg-neutral-900/50 p-6 border border-neutral-300/60 dark:border-neutral-800">
-                        <h4 className="text-xs font-mono uppercase tracking-widest text-[#00cfc8] font-bold mb-4">
+                      <div className="premium-surface lg:col-span-6 bg-neutral-100 dark:bg-neutral-900/50 p-6 border border-neutral-300/60 dark:border-neutral-800">
+                        <h4 className="text-xs font-mono uppercase tracking-widest text-[#00736e] dark:text-[#00cfc8] font-bold mb-4">
                           DELIVERABLES &amp; SYSTEM OUTPUTS:
                         </h4>
                         <ul className="space-y-3">
@@ -213,9 +236,9 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
                           ))}
                         </ul>
 
-                        <div className="mt-6 pt-4 border-t border-neutral-300/60 dark:border-neutral-800 flex items-center justify-between">
+                        <div className="mt-6 flex flex-col items-start gap-3 border-t border-neutral-300/60 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                           <span className="text-xs font-mono text-neutral-500">
-                            Average Deployment: 3 — 6 Weeks
+                            Average Deployment: {s.id === 's4' ? '7 — 10 Days' : '3 — 6 Weeks'}
                           </span>
                           <button
                             type="button"
@@ -223,7 +246,7 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
                               sounds.playLaunch();
                               onOpenProjectModal();
                             }}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-[#00cfc8] hover:underline"
+                            className="inline-flex min-h-10 max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-neutral-300/80 px-3 text-xs font-bold font-mono text-[#00736e] transition-[color,border-color,background-color,transform] hover:border-[#00cfc8] hover:bg-[#00cfc8]/[.07] hover:underline dark:border-neutral-700 dark:text-[#00cfc8] dark:hover:border-[#00cfc8]"
                           >
                             <span>REQUEST SCOPE SPEC</span>
                             <ArrowUpRight size={14} />

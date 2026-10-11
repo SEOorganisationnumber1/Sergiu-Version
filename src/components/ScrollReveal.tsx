@@ -11,23 +11,33 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
   className = '',
   delayMs = 0,
 }) => {
-  const [isRevealed, setIsRevealed] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(() =>
+    typeof window === 'undefined' ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    !('IntersectionObserver' in window)
+  );
   const domRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (isRevealed) return;
+
+    let revealTimeout: number | undefined;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setTimeout(() => {
+          if (entry.isIntersecting && revealTimeout === undefined) {
+            revealTimeout = window.setTimeout(() => {
               setIsRevealed(true);
+              revealTimeout = undefined;
             }, delayMs);
             if (domRef.current) observer.unobserve(domRef.current);
           }
         });
       },
       {
-        threshold: 0.12,
+        // Mobile sections can be several screens tall; a percentage threshold
+        // tied to the whole section can be impossible to reach on those pages.
+        threshold: 0.01,
         rootMargin: '0px 0px -50px 0px',
       }
     );
@@ -38,18 +48,15 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
     }
 
     return () => {
-      if (currentElem) observer.unobserve(currentElem);
+      window.clearTimeout(revealTimeout);
+      observer.disconnect();
     };
-  }, [delayMs]);
+  }, [delayMs, isRevealed]);
 
   return (
     <div
       ref={domRef}
-      className={`transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        isRevealed
-          ? 'opacity-100 translate-y-0 scale-100'
-          : 'opacity-0 translate-y-12 scale-[0.98]'
-      } ${className}`}
+      className={`scroll-reveal ${isRevealed ? 'is-revealed' : ''} ${isRevealed ? '' : 'will-change-[opacity,transform]'} ${className}`}
     >
       {children}
     </div>

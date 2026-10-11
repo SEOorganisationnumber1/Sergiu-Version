@@ -6,9 +6,9 @@ export const CustomCursor: React.FC = () => {
   const labelRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    // Only activate for non-touch pointers
-    const isTouch = window.matchMedia('(pointer: coarse)').matches;
-    if (isTouch) return;
+    // Hide the native pointer only when this custom cursor can actually run.
+    if (!window.matchMedia('(pointer: fine) and (hover: hover) and (min-width: 768px)').matches) return;
+    document.body.classList.add('custom-cursor-active');
 
     let mouseX = -100;
     let mouseY = -100;
@@ -16,12 +16,21 @@ export const CustomCursor: React.FC = () => {
     let ringY = -100;
     let isVisible = false;
     let isHovered = false;
-    let currentMode: 'default' | 'view' | 'drag' | 'action' = 'default';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let currentMode: 'default' | 'view' | 'drag' | 'action' | 'code' = 'default';
     let rafId: number | null = null;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const positionCursor = (x: number, y: number) => `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+
+    const handleMouseMove = (e: PointerEvent) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
+
+      if (reducedMotion) {
+        ringX = mouseX;
+        ringY = mouseY;
+        if (ringRef.current) ringRef.current.style.transform = positionCursor(ringX, ringY);
+      }
 
       if (!isVisible) {
         isVisible = true;
@@ -38,7 +47,11 @@ export const CustomCursor: React.FC = () => {
       const cursorTarget = target.closest('[data-cursor]') as HTMLElement | null;
       if (cursorTarget) {
         const type = cursorTarget.getAttribute('data-cursor');
-        if (type === 'view') {
+        if (type === 'code') {
+          currentMode = 'code';
+          isHovered = true;
+          if (labelRef.current) labelRef.current.textContent = '< / >';
+        } else if (type === 'view') {
           currentMode = 'view';
           isHovered = true;
           if (labelRef.current) labelRef.current.textContent = 'EXPLORE';
@@ -63,13 +76,14 @@ export const CustomCursor: React.FC = () => {
 
       // Direct instant dot positioning (0ms latency, bypassing React state)
       if (dotRef.current) {
-        dotRef.current.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(${isHovered && currentMode !== 'action' ? '0' : '1'})`;
+        dotRef.current.style.transform = `${positionCursor(mouseX, mouseY)} scale(${isHovered && currentMode !== 'action' ? '0' : '1'})`;
       }
 
       // Update ring appearance classes directly via dataset
       if (ringRef.current) {
         ringRef.current.setAttribute('data-mode', currentMode);
       }
+      if (!reducedMotion && rafId === null) rafId = requestAnimationFrame(updateRing);
     };
 
     const handleMouseLeave = () => {
@@ -80,6 +94,7 @@ export const CustomCursor: React.FC = () => {
 
     // Smooth Lerp loop using GPU compositor
     const updateRing = () => {
+      rafId = null;
       if (isVisible) {
         const dx = mouseX - ringX;
         const dy = mouseY - ringY;
@@ -87,29 +102,28 @@ export const CustomCursor: React.FC = () => {
         ringY += dy * 0.22;
 
         if (ringRef.current) {
-          ringRef.current.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
+          ringRef.current.style.transform = positionCursor(ringX, ringY);
         }
+        if (Math.abs(dx) > 0.15 || Math.abs(dy) > 0.15) rafId = requestAnimationFrame(updateRing);
       }
-      rafId = requestAnimationFrame(updateRing);
     };
 
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('pointermove', handleMouseMove, { passive: true });
     document.addEventListener('mouseleave', handleMouseLeave);
-    rafId = requestAnimationFrame(updateRing);
-
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('pointermove', handleMouseMove);
       document.removeEventListener('mouseleave', handleMouseLeave);
+      document.body.classList.remove('custom-cursor-active');
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[120] overflow-hidden">
       {/* Precision Micro Dot (Zero lag, instant hardware response) */}
       <div
         ref={dotRef}
-        className="fixed top-0 left-0 w-2 h-2 rounded-full bg-[#00cfc8] -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none will-change-transform"
+        className="cursor-dot fixed top-0 left-0 w-2 h-2 rounded-full bg-[#00cfc8] opacity-0 pointer-events-none will-change-transform"
         style={{
           boxShadow: '0 0 10px rgba(0, 207, 200, 0.8)',
           transition: 'opacity 0.2s ease',
@@ -120,7 +134,7 @@ export const CustomCursor: React.FC = () => {
       <div
         ref={ringRef}
         data-mode="default"
-        className="fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center font-bold opacity-0 pointer-events-none will-change-transform cursor-ring"
+        className="fixed top-0 left-0 rounded-full flex items-center justify-center font-bold opacity-0 pointer-events-none will-change-transform cursor-ring"
       >
         <span
           ref={labelRef}

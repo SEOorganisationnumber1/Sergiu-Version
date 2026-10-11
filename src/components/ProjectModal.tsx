@@ -1,246 +1,225 @@
-import React, { useState } from 'react';
-import { X, Check, Sparkles, Send, ShieldCheck } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, Check, Plus, Send, ShieldCheck, X } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
+import { AVAILABLE_MODULES, PRICING_PLANS, type PricingPlanSelection } from './pricingCatalog';
+import { OverlayScrollArea } from './OverlayScrollArea';
 
 interface ProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialPlan?: string;
+  initialPlan?: PricingPlanSelection;
 }
 
-const SERVICES_OPTIONS = [
-  'Organic SEO Domination (Google #1)',
-  'Bespoke Web Design & Figma UI/UX',
-  'Full-Stack Web App (Front + Back + DB)',
-  'Lite Sprint Landing Page',
-  '3D WebGL & Interactive Experience',
-  'High-Scale E-Commerce Systems',
-];
-
 export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, initialPlan }) => {
-  const [selectedServices, setSelectedServices] = useState<string[]>(() => {
-    if (initialPlan) return [initialPlan];
-    return ['Organic SEO Domination (Google #1)'];
-  });
-  const [budget, setBudget] = useState<number>(35);
-  const [name, setName] = useState('');
+  const plan = initialPlan ? PRICING_PLANS.find((item) => item.id === initialPlan.planId) : undefined;
+  const cycle = initialPlan?.billingCycle ?? 'project';
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>(() => plan?.includedModuleIds ?? []);
   const [email, setEmail] = useState('');
-  const [brief, setBrief] = useState(initialPlan ? `Inquiring regarding configured plan: ${initialPlan}` : '');
+  const [emailError, setEmailError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+
+  const requestClose = () => {
+    if (isClosing) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onClose();
+      return;
+    }
+    setIsClosing(true);
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      onClose();
+    }, 230);
+  };
+
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setIsClosing(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') requestClose(); };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose, isClosing]);
+
+  const activeModules = useMemo(
+    () => AVAILABLE_MODULES.filter((module) => selectedModuleIds.includes(module.id)),
+    [selectedModuleIds],
+  );
 
   if (!isOpen) return null;
 
-  const toggleService = (srv: string) => {
+  const basePrice = plan ? (cycle === 'project' ? plan.basePrice : plan.monthlyPrice) : 0;
+  const selectedPrice = plan
+    ? basePrice
+      + activeModules.reduce((total, module) => total + (plan.includedModuleIds.includes(module.id) ? 0 : (cycle === 'project' ? module.price : Math.round(module.price * 0.35))), 0)
+      - plan.includedModuleIds
+        .filter((moduleId) => !selectedModuleIds.includes(moduleId))
+        .reduce((total, moduleId) => {
+          const module = AVAILABLE_MODULES.find((item) => item.id === moduleId);
+          const adjustment = module ? (cycle === 'project' ? module.price : Math.round(module.price * 0.35)) : 0;
+          return total + adjustment;
+        }, 0)
+    : 0;
+  const displayPrice = plan
+    ? `$${Math.max(0, selectedPrice).toLocaleString('en-US')}${cycle === 'retainer' ? ' / mo' : ''}`
+    : undefined;
+
+  const toggleModule = (moduleId: string) => {
     sounds.playClick();
-    if (selectedServices.includes(srv)) {
-      setSelectedServices(selectedServices.filter((s) => s !== srv));
-    } else {
-      setSelectedServices([...selectedServices, srv]);
-    }
+    setSelectedModuleIds((current) => current.includes(moduleId)
+      ? current.filter((id) => id !== moduleId)
+      : [...current, moduleId]);
   };
 
-  const estimatedWeeks = Math.max(4, Math.min(16, selectedServices.length * 2.5 + Math.round(budget / 25)));
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sounds.playSuccess();
-    setSubmitted(true);
-
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#00cfc8', '#ffffff', '#070b12', '#38ef7d'],
-      });
-    } catch {
-      // Confetti fallback
-    }
-  };
-
-  const handleResetAndClose = () => {
-    sounds.playClick();
-    setSubmitted(false);
-    onClose();
-  };
+  const subject = encodeURIComponent(plan ? `Project inquiry — ${plan.name}` : 'New project inquiry');
+  const body = encodeURIComponent([
+    `Email: ${email}`,
+    plan ? `Plan: ${plan.name}` : 'Project: New inquiry',
+    ...(displayPrice ? [`Configured estimate: ${displayPrice}`] : []),
+    ...(plan ? [`Selected scope: ${activeModules.map((module) => module.name).join(', ') || 'No modules selected'}`] : []),
+  ].join('\n'));
+  const emailDraftHref = `mailto:partner@nxtstudio.agency?subject=${subject}&body=${body}`;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-[#f2f5f8] dark:bg-[#090e16] border border-neutral-300 dark:border-neutral-800 max-w-3xl w-full p-6 sm:p-10 relative max-h-[92vh] overflow-y-auto shadow-2xl">
-        
-        {/* Close Button */}
-        <button
-          onClick={handleResetAndClose}
-          className="absolute top-6 right-6 p-2 rounded-full border border-neutral-300 dark:border-neutral-700 hover:border-[#00cfc8] hover:text-[#00cfc8] text-neutral-600 dark:text-neutral-400 transition-colors"
-          aria-label="Close"
-        >
-          <X size={20} />
+    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
+      <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="project-modal-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-2xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-800 dark:bg-[#090e16] ${isClosing ? 'is-closing' : ''}`} contentClassName="max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-8" overlay={
+        <button type="button" onClick={requestClose} aria-label="Close" className="absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full border border-neutral-300 bg-[#e9eef2]/90 text-neutral-600 shadow-sm transition-colors hover:border-[#00cfc8] hover:text-[#00aaa4] dark:border-neutral-700 dark:bg-[#090e16]/90 dark:text-neutral-300 sm:right-6 sm:top-6">
+          <X size={18} />
         </button>
+      }>
 
         {submitted ? (
-          <div className="py-12 text-center flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full bg-[#00cfc8]/20 text-[#00cfc8] flex items-center justify-center mb-6 border border-[#00cfc8]/40">
-              <Sparkles size={32} />
+          <div className="modal-content-flow py-10 pr-8 text-center sm:py-14 sm:pr-0">
+            <span className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-[#00cfc8]/15 text-[#00736e] dark:text-[#00cfc8]"><Check size={27} /></span>
+            <p className="text-[10px] font-bold font-mono uppercase tracking-[.18em] text-[#00736e] dark:text-[#00cfc8]">REQUEST PREPARED</p>
+            <h2 id="project-modal-title" className="mt-2 text-2xl font-black uppercase tracking-tight text-[#07111a] dark:text-white sm:text-3xl">One last step.</h2>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-neutral-600 dark:text-neutral-300">Open the email draft and send it to complete your request. This site does not send or store your email automatically.</p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <a href={emailDraftHref} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#00cfc8] px-6 text-xs font-black font-mono uppercase tracking-wide text-[#07111a]">Open email draft <ArrowUpRight size={15} /></a>
+              <button type="button" onClick={requestClose} className="min-h-12 rounded-full border border-neutral-300 px-6 text-xs font-bold font-mono uppercase tracking-wide text-neutral-700 dark:border-neutral-700 dark:text-neutral-200">Close</button>
             </div>
-            <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8] font-bold mb-2">
-              TRANSMISSION RECEIVED // COMMISSION QUEUED
-            </span>
-            <h3 className="text-3xl sm:text-4xl font-black uppercase text-[#070b12] dark:text-white tracking-tight mb-4">
-              THANK YOU, {name || 'PARTNER'}.
-            </h3>
-            <p className="text-neutral-600 dark:text-neutral-300 max-w-lg mb-8 leading-relaxed">
-              Our partners will evaluate your architectural objectives within 12 business hours. A dedicated briefing link has been queued for <span className="font-semibold text-[#00cfc8]">{email}</span>.
-            </p>
-            <button
-              onClick={handleResetAndClose}
-              className="px-8 py-3.5 bg-[#00cfc8] text-[#070b12] font-black text-xs uppercase tracking-wider"
-            >
-              RETURN TO EXPERIENCE
-            </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-[#00cfc8]" />
-                <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8]">
-                  NEW PROJECT COMMISSION
-                </span>
+          <form className="modal-content-flow" noValidate onSubmit={(event) => {
+            event.preventDefault();
+            const emailField = event.currentTarget.elements.namedItem('project-email') as HTMLInputElement | null;
+            if (!emailField?.validity.valid) {
+              setEmailError('Please enter a valid email address.');
+              emailField?.focus();
+              return;
+            }
+            setEmailError('');
+            sounds.playSuccess();
+            setSubmitted(true);
+          }}>
+            <div className="mb-7 pr-9 sm:mb-8 sm:pr-12">
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-bold font-mono uppercase tracking-[.16em] text-[#00736e] dark:text-[#00cfc8]">
+                <span className="h-2 w-2 rounded-full bg-[#00cfc8]" /> {plan ? 'CUSTOMIZE YOUR PLAN' : 'START A PROJECT'}
               </div>
-              <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-[#070b12] dark:text-white">
-                LET'S CONSTRUCT SOMETHING EXTRAORDINARY.
+              <h2 id="project-modal-title" className="text-2xl font-black uppercase leading-tight tracking-tight text-[#07111a] dark:text-white sm:text-4xl">
+                {plan ? plan.name : 'LET’S TALK ABOUT YOUR PROJECT.'}
               </h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                Select your required disciplines to generate real-time estimates.
+              <p className="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-400">
+                {plan ? `${plan.tagline} Choose what stays in scope, then add anything else you need.` : 'Leave your email and we’ll follow up about the right next step.'}
               </p>
             </div>
 
-            {/* Scope Discipline Selector */}
-            <div>
-              <label className="text-xs font-mono uppercase tracking-wider text-neutral-500 block mb-3 font-bold">
-                1. SELECT DISCIPLINES (CLICK TO TOGGLE):
-              </label>
-              <div className="flex flex-wrap gap-2.5">
-                {SERVICES_OPTIONS.map((srv) => {
-                  const active = selectedServices.includes(srv);
-                  return (
-                    <button
-                      key={srv}
-                      type="button"
-                      onClick={() => toggleService(srv)}
-                      className={`px-4 py-2 text-xs font-mono border transition-all duration-200 flex items-center gap-2 ${
-                        active
-                          ? 'bg-[#00cfc8] text-[#070b12] font-bold border-[#00cfc8] shadow-md shadow-[#00cfc8]/25'
-                          : 'bg-white/60 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-[#00cfc8]'
-                      }`}
-                    >
-                      {active && <Check size={14} />}
-                      <span>{srv}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {plan && (
+              <div className="mb-7 space-y-5">
+                <section aria-labelledby="included-scope-heading">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h3 id="included-scope-heading" className="text-[10px] font-bold font-mono uppercase tracking-[.14em] text-neutral-500">Included in this plan</h3>
+                    <span className="text-[10px] font-mono text-neutral-500">Tap to remove</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {plan.includedModuleIds.map((moduleId) => {
+                      const module = AVAILABLE_MODULES.find((item) => item.id === moduleId);
+                      if (!module) return null;
+                      const active = selectedModuleIds.includes(moduleId);
+                      const adjustment = cycle === 'project' ? module.price : Math.round(module.price * 0.35);
+                      return (
+                        <button key={module.id} type="button" aria-pressed={active} onClick={() => toggleModule(module.id)} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${active ? 'border-[#00cfc8]/45 bg-[#00cfc8]/[.07] text-neutral-800 dark:text-neutral-100' : 'border-neutral-300 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400'}`}>
+                          <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${active ? 'bg-[#00cfc8] text-[#07111a]' : 'bg-neutral-200 dark:bg-neutral-800'}`}>{active ? <Check size={12} /> : <Plus size={12} />}</span>
+                          <span className="min-w-0 flex-1">{module.name}</span>
+                          {!active && <span className="shrink-0 font-mono text-[10px]">−${adjustment}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-            {/* Interactive Budget Slider */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-neutral-500 mb-2">
-                <span className="font-bold">2. ESTIMATED CAPITAL ALLOCATION:</span>
-                <span className="text-[#00cfc8] font-bold text-sm">
-                  ${budget >= 150 ? '150,000+' : `${budget},000`} USD
-                </span>
+                <details className="group rounded-2xl border border-neutral-300 dark:border-neutral-800">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-xs font-bold text-neutral-700 marker:hidden dark:text-neutral-200 [&::-webkit-details-marker]:hidden">
+                    <span>Add optional modules <span className="font-normal text-neutral-500">({AVAILABLE_MODULES.length - plan.includedModuleIds.length})</span></span>
+                    <Plus size={15} className="transition-transform group-open:rotate-45" />
+                  </summary>
+                  <div className="grid gap-2 border-t border-neutral-200 p-3 dark:border-neutral-800 sm:grid-cols-2">
+                    {AVAILABLE_MODULES.filter((module) => !plan.includedModuleIds.includes(module.id)).map((module) => {
+                      const active = selectedModuleIds.includes(module.id);
+                      const amount = cycle === 'project' ? module.price : Math.round(module.price * 0.35);
+                      return (
+                        <button key={module.id} type="button" aria-pressed={active} onClick={() => toggleModule(module.id)} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-colors ${active ? 'border-[#00cfc8]/50 bg-[#00cfc8]/[.07] text-neutral-800 dark:text-neutral-100' : 'border-neutral-200 text-neutral-600 hover:border-[#00cfc8]/50 dark:border-neutral-800 dark:text-neutral-300'}`}>
+                          <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${active ? 'bg-[#00cfc8] text-[#07111a]' : 'bg-neutral-200 dark:bg-neutral-800'}`}>{active ? <Check size={12} /> : <Plus size={12} />}</span>
+                          <span className="min-w-0 flex-1"><span className="block">{module.name}</span><span className="mt-0.5 block text-[10px] text-neutral-500">{module.category}</span></span>
+                          <span className="shrink-0 font-mono text-[10px]">+${amount}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
+
+                <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white/70 px-4 py-3 dark:border-neutral-800 dark:bg-white/[.03]">
+                  <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-neutral-500">Configured estimate</span>
+                  <span className="text-lg font-black text-[#00736e] dark:text-[#00cfc8]">{displayPrice}</span>
+                </div>
               </div>
+            )}
+
+            <div className="border-t border-neutral-200 pt-5 dark:border-neutral-800">
+              <label htmlFor="project-email" className="mb-2 block text-[10px] font-bold font-mono uppercase tracking-[.14em] text-neutral-500">Your email <span className="text-[#00736e] dark:text-[#00cfc8]">*</span></label>
               <input
-                type="range"
-                min="20"
-                max="150"
-                step="5"
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className="w-full h-2 bg-neutral-300 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-[#00cfc8]"
+                type="email"
+                id="project-email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                placeholder="you@company.com"
+                value={email}
+                aria-invalid={Boolean(emailError)}
+                aria-describedby={emailError ? 'project-email-error' : 'project-email-help'}
+                onChange={(event) => { setEmail(event.target.value); if (emailError) setEmailError(''); }}
+                className={`min-h-12 w-full rounded-xl border bg-white px-4 text-sm text-[#07111a] outline-none transition-colors placeholder:text-neutral-400 focus:border-[#00cfc8] dark:bg-[#0c121e] dark:text-white ${emailError ? 'border-rose-500 dark:border-rose-400' : 'border-neutral-300 dark:border-neutral-700'}`}
               />
-              <div className="flex justify-between text-[11px] font-mono text-neutral-400 mt-1">
-                <span>$20k (Agile Sprint)</span>
-                <span>$75k (Full Transformation)</span>
-                <span>$150k+ (Enterprise Ecosystem)</span>
-              </div>
+              {emailError && <p id="project-email-error" role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">{emailError}</p>}
+              <p id="project-email-help" className="mt-2 flex items-center gap-1.5 text-[10px] text-neutral-500"><ShieldCheck size={13} className="text-[#00736e] dark:text-[#00cfc8]" /> Used only to prepare your project inquiry.</p>
             </div>
 
-            {/* Dynamic Real-Time Estimation Strip */}
-            <div className="p-4 bg-neutral-200/60 dark:bg-neutral-900/60 border border-neutral-300 dark:border-neutral-800 flex items-center justify-between text-xs font-mono">
-              <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-300">
-                <ShieldCheck size={16} className="text-[#00cfc8]" />
-                <span>DYNAMIC SPRINT ESTIMATION:</span>
-              </div>
-              <span className="text-[#00cfc8] font-bold">
-                ~ {estimatedWeeks} WEEKS DEDICATED DEV CYCLE
-              </span>
-            </div>
-
-            {/* Contact Form Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-mono uppercase text-neutral-500 block mb-1 font-semibold">
-                  YOUR NAME:
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Alexander Vance"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 bg-white dark:bg-[#0c121e] border border-neutral-300 dark:border-neutral-700 text-sm text-[#070b12] dark:text-white focus:outline-none focus:border-[#00cfc8]"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-mono uppercase text-neutral-500 block mb-1 font-semibold">
-                  CORPORATE EMAIL:
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="alexander@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-white dark:bg-[#0c121e] border border-neutral-300 dark:border-neutral-700 text-sm text-[#070b12] dark:text-white focus:outline-none focus:border-[#00cfc8]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-mono uppercase text-neutral-500 block mb-1 font-semibold">
-                PROJECT CONTEXT &amp; GOALS:
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Briefly describe the vision, current challenges, and milestones..."
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
-                className="w-full px-4 py-3 bg-white dark:bg-[#0c121e] border border-neutral-300 dark:border-neutral-700 text-sm text-[#070b12] dark:text-white focus:outline-none focus:border-[#00cfc8]"
-              />
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex items-center justify-between pt-4 border-t border-neutral-300 dark:border-neutral-800">
-              <span className="text-xs font-mono text-neutral-500">
-                NDA GUARANTEED UPON TRANSMISSION
-              </span>
-
-              <button
-                type="submit"
-                onMouseEnter={() => sounds.playHover()}
-                className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#00cfc8] text-[#070b12] font-black text-xs uppercase tracking-wider shadow-lg shadow-[#00cfc8]/20 hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                <span>TRANSMIT BRIEF</span>
-                <Send size={14} />
+            <div className="mt-6 flex flex-col-reverse gap-3 border-t border-neutral-200 pt-5 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+              <button type="button" onClick={requestClose} className="min-h-11 rounded-full px-4 text-xs font-bold text-neutral-500 transition-colors hover:text-neutral-900 dark:hover:text-white">Cancel</button>
+              <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#00cfc8] px-6 text-xs font-black font-mono uppercase tracking-wide text-[#07111a] shadow-lg shadow-[#00cfc8]/15 transition-transform hover:-translate-y-0.5">
+                Prepare request <Send size={14} />
               </button>
             </div>
           </form>
         )}
-
-      </div>
+      </OverlayScrollArea>
     </div>
   );
 };

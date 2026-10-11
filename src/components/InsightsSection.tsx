@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { OverlayScrollArea } from './OverlayScrollArea';
 import { ArrowUpRight, BookOpen, Clock, X } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 
@@ -44,9 +46,50 @@ const ARTICLES: Article[] = [
 
 export const InsightsSection: React.FC = () => {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [isArticleClosing, setIsArticleClosing] = useState(false);
+  const articleCloseTimer = useRef<number | null>(null);
+
+  const closeArticle = () => {
+    if (!selectedArticle || isArticleClosing) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setSelectedArticle(null);
+      return;
+    }
+    setIsArticleClosing(true);
+    articleCloseTimer.current = window.setTimeout(() => {
+      setSelectedArticle(null);
+      setIsArticleClosing(false);
+      articleCloseTimer.current = null;
+    }, 240);
+  };
+
+  useEffect(() => () => {
+    if (articleCloseTimer.current !== null) window.clearTimeout(articleCloseTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedArticle) return;
+    if (articleCloseTimer.current !== null) {
+      window.clearTimeout(articleCloseTimer.current);
+      articleCloseTimer.current = null;
+    }
+    setIsArticleClosing(false);
+  }, [selectedArticle]);
+
+  useEffect(() => {
+    if (!selectedArticle) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeArticle(); };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedArticle, isArticleClosing]);
 
   return (
-    <section id="insights" className="py-24 sm:py-32 border-b border-neutral-300/60 dark:border-neutral-800/80 relative">
+    <section id="insights" className="pt-12 pb-16 sm:pt-14 sm:pb-20 relative">
       <div className="max-w-[1680px] mx-auto px-4 sm:px-8 lg:px-12">
         
         {/* Section Header */}
@@ -54,11 +97,11 @@ export const InsightsSection: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full bg-[#00cfc8]" />
-              <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8]">
+              <span className="text-xs font-mono uppercase tracking-widest text-[#00736e] dark:text-[#00cfc8]">
                 EDITORIAL JOURNAL &amp; DISPATCHES
               </span>
             </div>
-            <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
+            <h2 className="section-display-title text-4xl sm:text-6xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
               INSIGHTS &amp; PERSPECTIVES.
             </h2>
           </div>
@@ -69,69 +112,87 @@ export const InsightsSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Article Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-          {ARTICLES.map((article, idx) => (
-            <article
-              key={article.id}
-              onClick={() => {
-                sounds.playLaunch();
-                setSelectedArticle(article);
-              }}
-              onMouseEnter={() => sounds.playHover()}
-              data-cursor="view"
-              className="p-8 border border-neutral-300/80 dark:border-neutral-800 bg-white/50 dark:bg-[#0c121d]/50 hover:border-[#00cfc8] transition-all duration-300 cursor-pointer flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-center justify-between text-xs font-mono text-neutral-400 mb-6">
-                  <span className="text-[#00cfc8] font-bold">
-                    0{idx + 1} // {article.category}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Clock size={12} />
-                    <span>{article.readTime}</span>
+        {/* Editorial feature plus a compact dispatch list gives the journal a clear reading order. */}
+        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-12 lg:grid-rows-2 lg:gap-6">
+          {ARTICLES.map((article, idx) => {
+            const isFeatured = idx === 0;
+            return (
+              <article
+                key={article.id}
+                onClick={() => {
+                  sounds.playLaunch();
+                  setIsArticleClosing(false);
+                  setSelectedArticle(article);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    sounds.playLaunch();
+                    setIsArticleClosing(false);
+                    setSelectedArticle(article);
+                  }
+                }}
+                onMouseEnter={() => sounds.playHover()}
+                role="button"
+                tabIndex={0}
+                aria-label={`Read article: ${article.title}`}
+                data-cursor="view"
+                className={`insight-entry group relative flex h-full cursor-pointer flex-col justify-between overflow-hidden border border-neutral-300/80 transition-[transform,border-color,box-shadow,background-color] duration-500 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-1 hover:border-[#00cfc8]/70 hover:shadow-[0_22px_55px_rgba(0,145,140,.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#00cfc8] dark:border-neutral-800 dark:hover:shadow-[0_22px_55px_rgba(0,207,200,.08)] ${isFeatured ? 'insight-feature min-h-[360px] rounded-[28px] bg-gradient-to-br from-white/85 via-white/55 to-[#00cfc8]/[.06] p-6 sm:col-span-2 sm:min-h-[390px] sm:p-9 lg:col-span-7 lg:row-span-2 lg:min-h-[450px] lg:p-10 dark:from-[#121d29] dark:via-[#0c121d] dark:to-[#00cfc8]/[.08]' : 'min-h-[220px] rounded-[24px] bg-white/45 p-6 sm:p-7 lg:col-span-5 dark:bg-[#0c121d]/45'}`}
+              >
+                <span aria-hidden="true" className={`insight-index ${isFeatured ? 'insight-index-feature' : 'insight-index-compact'}`}>0{idx + 1}</span>
+                {isFeatured && <span aria-hidden="true" className="pointer-events-none absolute left-8 top-0 h-px w-28 bg-gradient-to-r from-transparent via-[#00cfc8] to-transparent sm:left-10" />}
+                <div className="relative z-10">
+                  <div className={`mb-5 flex items-center justify-between gap-3 text-[10px] font-mono text-neutral-500 sm:text-xs ${isFeatured ? 'sm:mb-10' : ''}`}>
+                    <span className="font-bold uppercase tracking-wider text-[#00736e] dark:text-[#00cfc8]">
+                      0{idx + 1} <span className="text-neutral-400">//</span> {article.category}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <Clock size={12} /> {article.readTime}
+                    </span>
                   </div>
+
+                  <h3 className={`max-w-[20ch] font-black uppercase tracking-tight text-[#070b12] transition-colors duration-300 group-hover:text-[#00736e] dark:text-white dark:group-hover:text-[#00cfc8] ${isFeatured ? 'text-2xl leading-[1.08] sm:text-4xl lg:text-5xl' : 'text-lg leading-tight sm:text-xl'}`}>
+                    {article.title}
+                  </h3>
+
+                  <p className={`mt-3 max-w-[58ch] text-sm leading-relaxed text-neutral-600 dark:text-neutral-400 ${isFeatured ? 'sm:mt-5 sm:text-base' : 'line-clamp-3'}`}>
+                    {article.excerpt}
+                  </p>
                 </div>
 
-                <h3 className="text-xl sm:text-2xl font-black text-[#070b12] dark:text-white uppercase tracking-tight group-hover:text-[#00cfc8] transition-colors duration-200">
-                  {article.title}
-                </h3>
-
-                <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                  {article.excerpt}
-                </p>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs font-mono text-neutral-500 group-hover:text-[#00cfc8] transition-colors">
-                <span>{article.date}</span>
-                <span className="inline-flex items-center gap-1 font-bold">
-                  READ DISPATCH <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </span>
-              </div>
-            </article>
-          ))}
+                <div className={`relative z-10 mt-6 flex items-center justify-between gap-3 border-t border-neutral-300/70 pt-4 text-[10px] font-mono text-neutral-500 transition-colors group-hover:text-[#00736e] sm:text-xs dark:border-neutral-700/80 dark:group-hover:text-[#00cfc8] ${isFeatured ? 'sm:mt-8 sm:pt-5' : ''}`}>
+                  <span>{article.date}</span>
+                  <span className="inline-flex items-center gap-1 font-bold">
+                    READ DISPATCH <ArrowUpRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </span>
+                </div>
+              </article>
+            );
+          })}
         </div>
 
       </div>
 
       {/* Article Detail Modal */}
-      {selectedArticle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[#f2f5f8] dark:bg-[#0c121e] border border-neutral-300 dark:border-neutral-700 max-w-2xl w-full p-8 sm:p-10 relative max-h-[90vh] overflow-y-auto shadow-2xl">
+      {selectedArticle && createPortal(
+        <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 ${isArticleClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) closeArticle(); }}>
+          <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="article-modal-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-2xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-700 dark:bg-[#0c121e] ${isArticleClosing ? 'is-closing' : ''}`} contentClassName="modal-content-flow max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-10" overlay={
             <button
+              type="button"
               onClick={() => {
                 sounds.playClick();
-                setSelectedArticle(null);
+                closeArticle();
               }}
-              className="absolute top-6 right-6 p-2 rounded-full border border-neutral-300 dark:border-neutral-700 hover:border-[#00cfc8] hover:text-[#00cfc8]"
+              className="absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full border border-neutral-300 bg-[#e9eef2]/90 text-neutral-600 shadow-sm transition-colors hover:border-[#00cfc8] hover:text-[#00aaa4] dark:border-neutral-700 dark:bg-[#0c121e]/90 dark:text-neutral-300 sm:right-6 sm:top-6"
+              aria-label="Close article"
             >
               <X size={18} />
             </button>
-
+          }>
             <span className="text-xs font-mono text-[#00cfc8] font-bold uppercase tracking-widest block mb-2">
               {selectedArticle.category} • {selectedArticle.date}
             </span>
-            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#070b12] dark:text-white mb-6">
+            <h2 id="article-modal-title" className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#070b12] dark:text-white mb-6">
               {selectedArticle.title}
             </h2>
 
@@ -149,14 +210,14 @@ export const InsightsSection: React.FC = () => {
 
             <div className="mt-8 pt-6 border-t border-neutral-300 dark:border-neutral-800 flex justify-end">
               <button
-                onClick={() => setSelectedArticle(null)}
+                onClick={closeArticle}
                 className="px-6 py-2.5 bg-[#00cfc8] text-[#070b12] font-bold text-xs uppercase tracking-wider"
               >
                 Close Article
               </button>
             </div>
-          </div>
-        </div>
+          </OverlayScrollArea>
+        </div>, document.body
       )}
     </section>
   );

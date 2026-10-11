@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUpRight, LayoutGrid, List, Sparkles } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 
@@ -97,6 +97,10 @@ interface WorkShowcaseProps {
 export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) => {
   const [activeCategory, setActiveCategory] = useState<string>('All Work');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const filterThumbRef = useRef<HTMLSpanElement>(null);
+  const viewGroupRef = useRef<HTMLDivElement>(null);
+  const viewThumbRef = useRef<HTMLSpanElement>(null);
 
   const categories = ['All Work', '3D WebGL', 'E-Commerce', 'Fintech & SaaS', 'Brand Architecture'];
 
@@ -104,20 +108,54 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
     ? PROJECTS
     : PROJECTS.filter((p) => p.category === activeCategory);
 
+  useLayoutEffect(() => {
+    const group = filtersRef.current;
+    const thumb = filterThumbRef.current;
+    const activeButton = group?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+    if (!group || !thumb || !activeButton) return;
+    const moveThumb = () => {
+      const x = activeButton.offsetLeft;
+      const y = activeButton.offsetTop;
+      thumb.style.width = `${activeButton.offsetWidth}px`;
+      thumb.style.height = `${activeButton.offsetHeight}px`;
+      thumb.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    };
+    moveThumb();
+    const observer = new ResizeObserver(moveThumb);
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [activeCategory]);
+
+  useLayoutEffect(() => {
+    const group = viewGroupRef.current;
+    const thumb = viewThumbRef.current;
+    const activeButton = group?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+    if (!group || !thumb || !activeButton) return;
+    const moveThumb = () => {
+      thumb.style.width = `${activeButton.offsetWidth}px`;
+      thumb.style.height = `${activeButton.offsetHeight}px`;
+      thumb.style.transform = `translate3d(${activeButton.offsetLeft}px, ${activeButton.offsetTop}px, 0)`;
+    };
+    moveThumb();
+    const observer = new ResizeObserver(moveThumb);
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [viewMode]);
+
   return (
-    <section id="work" className="py-24 sm:py-32 border-b border-neutral-300/60 dark:border-neutral-800/80 relative">
+    <section id="work" className="py-20 sm:py-24 border-b border-neutral-300/60 dark:border-neutral-800/80 relative">
       <div className="max-w-[1680px] mx-auto px-4 sm:px-8 lg:px-12">
         
         {/* Section Header with Swiss Architectural Typography */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-12 border-b border-neutral-300/60 dark:border-neutral-800/80">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-end 2xl:justify-between gap-6 pb-12 border-b border-neutral-300/60 dark:border-neutral-800/80">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full bg-[#00cfc8]" />
-              <span className="text-xs font-mono uppercase tracking-widest text-[#00cfc8]">
+              <span className="text-xs font-mono uppercase tracking-widest text-[#00736e] dark:text-[#00cfc8]">
                 SELECTED REPERTOIRE (2024 — 2026)
               </span>
             </div>
-            <h2 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
+            <h2 className="section-display-title text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-[#070b12] dark:text-white uppercase">
               PROVEN IMPACT.
             </h2>
           </div>
@@ -125,18 +163,21 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
           {/* Controls: Category Filter + View Switcher */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Categories */}
-            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-neutral-200/70 dark:bg-neutral-900/80 rounded-none border border-neutral-300 dark:border-neutral-800">
+            <div ref={filtersRef} className="work-filter-group relative isolate flex flex-wrap items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-200/70 p-1 dark:border-neutral-800 dark:bg-neutral-900/80" role="group" aria-label="Filter projects by category">
+              <span ref={filterThumbRef} aria-hidden="true" className="work-filter-thumb absolute left-0 top-0 z-0 rounded-full bg-[#00cfc8]" />
               {categories.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
+                  aria-pressed={activeCategory === cat}
                   onClick={() => {
                     sounds.playClick();
                     setActiveCategory(cat);
                   }}
                   onMouseEnter={() => sounds.playHover()}
-                  className={`px-3 py-1.5 text-xs font-mono tracking-tight transition-all duration-200 ${
+                  className={`work-filter-button rounded-full px-3 py-1.5 text-xs font-mono tracking-tight transition-all duration-200 ${
                     activeCategory === cat
-                      ? 'bg-[#00cfc8] text-[#070b12] font-bold shadow-md shadow-[#00cfc8]/20'
+                      ? 'text-[#07111a] font-bold'
                       : 'text-neutral-600 dark:text-neutral-400 hover:text-[#070b12] dark:hover:text-white'
                   }`}
                 >
@@ -146,24 +187,29 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
             </div>
 
             {/* View Switcher */}
-            <div className="hidden sm:flex items-center p-1 bg-neutral-200/70 dark:bg-neutral-900/80 border border-neutral-300 dark:border-neutral-800">
+            <div ref={viewGroupRef} className="work-view-group relative isolate hidden items-center rounded-full border border-neutral-300 bg-neutral-200/70 p-1 dark:border-neutral-800 dark:bg-neutral-900/80 sm:flex" role="group" aria-label="Project layout">
+              <span ref={viewThumbRef} aria-hidden="true" className="work-view-thumb absolute left-0 top-0 z-0 rounded-full bg-[#00cfc8]" />
               <button
+                type="button"
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
                 onClick={() => {
                   sounds.playClick();
                   setViewMode('grid');
                 }}
-                className={`p-1.5 ${viewMode === 'grid' ? 'bg-[#00cfc8] text-[#070b12]' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'}`}
-                title="Grid View"
+                className={`work-view-button relative z-10 grid h-8 w-8 place-items-center rounded-full transition-colors ${viewMode === 'grid' ? 'text-[#070b12]' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'}`}
               >
                 <LayoutGrid size={16} />
               </button>
               <button
+                type="button"
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
                 onClick={() => {
                   sounds.playClick();
                   setViewMode('list');
                 }}
-                className={`p-1.5 ${viewMode === 'list' ? 'bg-[#00cfc8] text-[#070b12]' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'}`}
-                title="List View"
+                className={`work-view-button relative z-10 grid h-8 w-8 place-items-center rounded-full transition-colors ${viewMode === 'list' ? 'text-[#070b12]' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'}`}
               >
                 <List size={16} />
               </button>
@@ -176,14 +222,25 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
             {filteredProjects.map((project, idx) => (
               <div
-                key={project.id}
+                key={`${activeCategory}-${project.id}`}
                 onClick={() => {
                   sounds.playLaunch();
                   onSelectProject(project);
                 }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    sounds.playLaunch();
+                    onSelectProject(project);
+                  }
+                }}
                 onMouseEnter={() => sounds.playHover()}
+                role="button"
+                tabIndex={0}
+                aria-label={`View case study: ${project.title}`}
                 data-cursor="view"
-                className="group relative cursor-pointer flex flex-col border border-neutral-300/80 dark:border-neutral-800/80 bg-white dark:bg-[#0c121d] hover:border-[#00cfc8] transition-all duration-500 overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#00cfc8]/10"
+                style={{ animationDelay: `${Math.min(idx, 5) * 55}ms` }}
+                className="premium-surface work-card-enter group relative flex cursor-pointer flex-col overflow-hidden rounded-[28px] border border-neutral-300/80 bg-white shadow-sm transition-all duration-500 hover:border-[#00cfc8] hover:shadow-2xl hover:shadow-[#00cfc8]/10 dark:border-neutral-800/80 dark:bg-[#0c121d]"
               >
                 {/* Visual Canvas Card Preview */}
                 <div className={`h-72 w-full bg-gradient-to-br ${project.gradient} relative overflow-hidden flex items-center justify-center p-8 group-hover:scale-[1.02] transition-transform duration-700`}>
@@ -213,7 +270,7 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
                   </div>
 
                   {/* Corner Accent Button */}
-                  <div className="absolute bottom-4 right-4 w-10 h-10 rounded-none bg-[#070d18] text-white flex items-center justify-center group-hover:bg-[#00cfc8] group-hover:text-[#070b12] transition-all duration-300">
+                  <div className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#070d18] text-white transition-all duration-300 group-hover:bg-[#00cfc8] group-hover:text-[#070b12]">
                     <ArrowUpRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </div>
                 </div>
@@ -229,8 +286,8 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
                     </p>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-[#00cfc8] bg-[#00cfc8]/10 px-2.5 py-1 rounded">
+                  <div className="mt-6 flex flex-col items-start gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="rounded-full bg-[#00cfc8]/10 px-3 py-1.5 text-xs font-mono font-bold text-[#00736e] dark:text-[#00cfc8]">
                       {project.metrics}
                     </span>
                     <span className="text-xs font-mono text-neutral-400 group-hover:text-[#00cfc8] transition-colors">
@@ -243,19 +300,30 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
           </div>
         ) : (
           /* Work List View (Locomotive / Kota style editorial list) */
-          <div className="divide-y divide-neutral-300/80 dark:divide-neutral-800 mt-8">
+          <div className="mt-8 flex flex-col gap-4 sm:gap-5">
             {filteredProjects.map((project, idx) => (
               <div
-                key={project.id}
+                key={`${activeCategory}-${project.id}`}
                 onClick={() => {
                   sounds.playLaunch();
                   onSelectProject(project);
                 }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    sounds.playLaunch();
+                    onSelectProject(project);
+                  }
+                }}
                 onMouseEnter={() => sounds.playHover()}
+                role="button"
+                tabIndex={0}
+                aria-label={`View case study: ${project.title}`}
                 data-cursor="view"
-                className="py-8 group flex flex-col lg:flex-row lg:items-center justify-between gap-6 cursor-pointer hover:bg-neutral-200/30 dark:hover:bg-neutral-900/30 px-4 transition-colors duration-200"
+                style={{ animationDelay: `${Math.min(idx, 5) * 55}ms` }}
+                className="premium-surface work-card-enter group flex cursor-pointer flex-col justify-between gap-5 rounded-[24px] border border-neutral-300/70 px-5 py-6 transition-colors duration-200 hover:bg-neutral-200/30 sm:px-7 sm:py-7 lg:flex-row lg:items-center lg:px-8 dark:border-neutral-800/75 dark:hover:bg-neutral-900/30"
               >
-                <div className="flex items-center gap-6">
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end sm:gap-4 lg:gap-6">
                   <span className="font-mono text-sm text-neutral-400">
                     0{idx + 1}
                   </span>
@@ -270,13 +338,13 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
                 </div>
 
                 <div className="flex items-center gap-6">
-                  <span className="text-xs font-mono font-bold text-[#00cfc8] bg-[#00cfc8]/10 px-3 py-1.5 rounded">
+                  <span className="rounded-full bg-[#00cfc8]/10 px-3 py-1.5 text-xs font-mono font-bold text-[#00736e] dark:text-[#00cfc8]">
                     {project.metrics}
                   </span>
                   <span className="text-xs font-mono text-neutral-500 hidden sm:inline-block">
                     {project.award}
                   </span>
-                  <div className="w-10 h-10 bg-neutral-200 dark:bg-neutral-800 group-hover:bg-[#00cfc8] group-hover:text-black flex items-center justify-center transition-colors">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200 transition-colors group-hover:bg-[#00cfc8] group-hover:text-black dark:bg-neutral-800">
                     <ArrowUpRight size={18} />
                   </div>
                 </div>

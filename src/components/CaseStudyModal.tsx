@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, ArrowUpRight, CheckCircle, Sparkles, ShieldCheck } from 'lucide-react';
 import type { Project } from './WorkShowcase';
 import { sounds } from '../utils/soundEffects';
+import { OverlayScrollArea } from './OverlayScrollArea';
 
 interface CaseStudyModalProps {
   project: Project | null;
@@ -14,27 +15,70 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
   onClose,
   onOpenCommission,
 }) => {
+  const [isClosing, setIsClosing] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+
+  const requestClose = (afterClose?: () => void) => {
+    if (isClosing) return;
+    const finishClose = () => {
+      closeTimer.current = null;
+      onClose();
+      afterClose?.();
+    };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      finishClose();
+      return;
+    }
+    setIsClosing(true);
+    closeTimer.current = window.setTimeout(finishClose, 230);
+  };
+
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!project) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') requestClose(); };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [project, onClose, isClosing]);
+
+  useEffect(() => {
+    if (!project) return;
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setIsClosing(false);
+  }, [project]);
+
   if (!project) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-[#f2f5f8] dark:bg-[#090e16] border border-neutral-300 dark:border-neutral-800 max-w-4xl w-full p-6 sm:p-10 relative max-h-[92vh] overflow-y-auto shadow-2xl">
-        
-        {/* Close Button */}
+    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
+      <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="case-study-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-4xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-800 dark:bg-[#090e16] ${isClosing ? 'is-closing' : ''}`} contentClassName="modal-content-flow max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-10" overlay={
         <button
+          type="button"
           onClick={() => {
             sounds.playClick();
-            onClose();
+            requestClose();
           }}
-          className="absolute top-6 right-6 p-2 rounded-full border border-neutral-300 dark:border-neutral-700 hover:border-[#00cfc8] hover:text-[#00cfc8] text-neutral-600 dark:text-neutral-400 transition-colors"
+          className="absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full border border-neutral-300 bg-[#e9eef2]/90 text-neutral-600 shadow-sm transition-colors hover:border-[#00cfc8] hover:text-[#00aaa4] dark:border-neutral-700 dark:bg-[#090e16]/90 dark:text-neutral-300 sm:right-6 sm:top-6"
           aria-label="Close"
         >
           <X size={20} />
         </button>
+      }>
 
         {/* Top Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+        <div className="mb-8 pr-10">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 pr-2 sm:pr-0">
             <span className="text-xs font-mono font-bold text-[#00cfc8] uppercase tracking-widest">
               CASE STUDY ARCHIVE // {project.category}
             </span>
@@ -42,7 +86,7 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
             <span className="text-xs font-mono text-neutral-500">{project.year}</span>
           </div>
 
-          <h2 className="text-3xl sm:text-5xl font-black uppercase tracking-tight text-[#070b12] dark:text-white">
+          <h2 id="case-study-title" className="text-3xl sm:text-5xl font-black uppercase tracking-tight text-[#070b12] dark:text-white">
             {project.title}
           </h2>
           <p className="text-xs sm:text-sm font-mono text-neutral-500 dark:text-neutral-400 mt-1">
@@ -52,7 +96,7 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
 
         {/* Visual Showcase Banner */}
         <div className={`h-64 sm:h-80 w-full bg-gradient-to-br ${project.gradient} border border-neutral-300 dark:border-neutral-800 p-8 flex flex-col justify-between relative overflow-hidden mb-8`}>
-          <div className="flex items-center justify-between z-10">
+          <div className="z-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-xs font-mono text-[#00cfc8] border border-white/10">
               <Sparkles size={13} />
               <span>{project.award}</span>
@@ -97,7 +141,7 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
                 {project.tags.map((t) => (
                   <span
                     key={t}
-                    className="px-2.5 py-1 text-xs font-mono rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+                    className="rounded-full bg-neutral-200 px-3 py-1.5 text-xs font-mono text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
                   >
                     {t}
                   </span>
@@ -138,19 +182,18 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
             <button
               onClick={() => {
                 sounds.playClick();
-                onClose();
+                requestClose();
               }}
-              className="flex-1 sm:flex-none px-6 py-3 border border-neutral-300 dark:border-neutral-700 text-xs font-mono font-bold uppercase"
+              className="min-h-12 flex-1 rounded-full border border-neutral-300 px-6 py-3 text-xs font-mono font-bold uppercase transition-colors hover:border-[#00cfc8] sm:flex-none dark:border-neutral-700"
             >
               Back to Catalog
             </button>
             <button
               onClick={() => {
                 sounds.playLaunch();
-                onClose();
-                onOpenCommission();
+                requestClose(onOpenCommission);
               }}
-              className="flex-1 sm:flex-none px-6 py-3 bg-[#00cfc8] text-[#070b12] text-xs font-mono font-black uppercase flex items-center justify-center gap-1.5"
+              className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-full bg-[#00cfc8] px-6 py-3 text-xs font-mono font-black uppercase text-[#070b12] transition-transform hover:-translate-y-0.5 sm:flex-none"
             >
               <span>Build Something Similar</span>
               <ArrowUpRight size={14} />
@@ -158,7 +201,7 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
           </div>
         </div>
 
-      </div>
+      </OverlayScrollArea>
     </div>
   );
 };
