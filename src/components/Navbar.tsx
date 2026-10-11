@@ -168,18 +168,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           const bounds = event.currentTarget.getBoundingClientRect();
           const pointerX = event.clientX - bounds.left;
           const pointerY = event.clientY - bounds.top;
-          const tiltX = ((pointerY / bounds.height) * 2 - 1) * -0.55;
-          const tiltY = ((pointerX / bounds.width) * 2 - 1) * 0.9;
           event.currentTarget.style.setProperty('--nav-pointer-x', `${pointerX}px`);
           event.currentTarget.style.setProperty('--nav-pointer-y', `${pointerY}px`);
-          event.currentTarget.style.setProperty('--nav-tilt-x', `${tiltX}deg`);
-          event.currentTarget.style.setProperty('--nav-tilt-y', `${tiltY}deg`);
         }}
         onPointerLeave={(event) => {
           event.currentTarget.style.setProperty('--nav-pointer-x', '50%');
           event.currentTarget.style.setProperty('--nav-pointer-y', '50%');
-          event.currentTarget.style.setProperty('--nav-tilt-x', '0deg');
-          event.currentTarget.style.setProperty('--nav-tilt-y', '0deg');
         }}
         className={`nav-capsule relative z-[60] mx-auto flex h-[62px] max-w-[1160px] items-center justify-between rounded-full border px-3 shadow-lg shadow-black/[0.04] transition-[background-color,border-color,box-shadow,height] duration-500 ease-[cubic-bezier(.22,1,.36,1)] sm:px-6 ${scrolled ? 'nav-capsule-scrolled' : ''}`}
       >
