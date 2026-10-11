@@ -40,7 +40,7 @@ export const ClientsMarquee: React.FC = () => {
 
       {/* Kinetic Infinite Marquee Row 1 */}
       <div className="relative w-full overflow-hidden flex whitespace-nowrap py-4 border-y border-neutral-300/60 dark:border-neutral-800/80 select-none">
-        <div className="inline-flex animate-marquee gap-12 sm:gap-20 items-center">
+        <div className="client-marquee-track inline-flex w-max flex-none animate-marquee items-center gap-12 sm:gap-20">
           {CLIENTS.concat(CLIENTS).map((client, idx) => (
             <div
               key={idx}

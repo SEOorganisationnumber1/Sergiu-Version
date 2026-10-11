@@ -229,6 +229,33 @@ export const App: React.FC = () => {
     }, 1_080);
   };
 
+  const useSystemTheme = () => {
+    try { localStorage.removeItem('nxt_theme_override'); } catch { /* The in-memory preference still resets. */ }
+    if (themeOverride === null) return;
+
+    const root = document.documentElement;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (systemPrefersDark === isDarkMode || reduceMotion) {
+      flushSync(() => {
+        root.classList.toggle('dark', systemPrefersDark);
+        setThemeOverride(null);
+      });
+      return;
+    }
+
+    root.classList.add('theme-transitioning');
+    void root.offsetWidth;
+    flushSync(() => {
+      root.classList.toggle('dark', systemPrefersDark);
+      setThemeOverride(null);
+    });
+    if (themeTransitionTimer.current !== null) window.clearTimeout(themeTransitionTimer.current);
+    themeTransitionTimer.current = window.setTimeout(() => {
+      root.classList.remove('theme-transitioning');
+      themeTransitionTimer.current = null;
+    }, 300);
+  };
+
   // Lenis smooth momentum scroll initialization (Locomotive & Cuberto style)
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -326,7 +353,9 @@ export const App: React.FC = () => {
       {/* Fixed Navigation Bar */}
       <Navbar
         isDarkMode={isDarkMode}
+        hasManualThemeOverride={themeOverride !== null}
         toggleDarkMode={toggleDarkMode}
+        useSystemTheme={useSystemTheme}
         isPricingPage={isPricingPage}
         onNavigatePath={navigateToPath}
         onOpenProjectModal={() => {

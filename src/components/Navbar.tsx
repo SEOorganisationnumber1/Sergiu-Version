@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Volume2, VolumeX, X, ArrowUpRight, ChevronDown } from 'lucide-react';
+import { Sun, Moon, Monitor, Volume2, VolumeX, X, ArrowUpRight, ChevronDown } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 import { OverlayScrollArea } from './OverlayScrollArea';
 
 interface NavbarProps {
   isDarkMode: boolean;
+  hasManualThemeOverride: boolean;
   toggleDarkMode: (origin?: { x: number; y: number }) => void;
+  useSystemTheme: () => void;
   onOpenProjectModal: () => void;
   onNavigatePath: (path: string) => void;
   isPricingPage?: boolean;
@@ -13,7 +15,9 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   isDarkMode,
+  hasManualThemeOverride,
   toggleDarkMode,
+  useSystemTheme,
   onOpenProjectModal,
   onNavigatePath,
   isPricingPage = false,
@@ -244,7 +248,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               toggleDarkMode(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : undefined);
             }}
             onMouseEnter={() => sounds.playHover()}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            title={hasManualThemeOverride ? (isDarkMode ? 'Manual dark theme — switch to light' : 'Manual light theme — switch to dark') : `Following device theme (${isDarkMode ? 'dark' : 'light'}) — click to override`}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-neutral-300 p-0 text-neutral-600 transition-[color,border-color,background-color,transform] duration-300 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-0.5 hover:border-[#00cfc8] hover:text-[#00cfc8] active:scale-95 dark:border-neutral-700/80 dark:text-neutral-300 sm:h-auto sm:w-auto sm:p-2.5"
             aria-label="Theme Toggle"
           >
@@ -252,6 +256,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isDarkMode ? <Sun size={17} className="text-amber-300" /> : <Moon size={17} />}
             </span>
           </button>
+          {hasManualThemeOverride && (
+            <button
+              type="button"
+              onClick={() => { sounds.playClick(); useSystemTheme(); }}
+              onMouseEnter={() => sounds.playHover()}
+              title="Return to device theme"
+              aria-label="Return to device theme"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-neutral-300 p-0 text-neutral-600 transition-[color,border-color,background-color,transform] duration-300 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-0.5 hover:border-[#00cfc8] hover:text-[#00cfc8] active:scale-95 dark:border-neutral-700/80 dark:text-neutral-300 sm:h-auto sm:w-auto sm:p-2.5"
+            >
+              <Monitor size={16} />
+            </button>
+          )}
 
           {/* Pricing is a separate destination, so it sits with page actions rather than section anchors. */}
           <a
