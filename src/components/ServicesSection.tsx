@@ -105,7 +105,11 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
       const id = (event as CustomEvent<{ id: string }>).detail?.id;
       if (!SERVICES.some((service) => service.id === id)) return;
       setExpandedId(id);
-      window.setTimeout(() => document.getElementById(`service-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          document.getElementById(`service-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
     };
     window.addEventListener('nxt:open-service', openService);
     return () => window.removeEventListener('nxt:open-service', openService);
@@ -137,13 +141,13 @@ export const ServicesSection: React.FC<{ onOpenProjectModal: () => void }> = ({ 
         </div>
 
         {/* Accordion / Matrix Container */}
-        <div className="space-y-3">
+        <div className="service-accordion space-y-3">
           {SERVICES.map((s) => {
             const isExpanded = expandedId === s.id;
             return (
               <div
                 key={s.id}
-                className={`premium-surface overflow-hidden rounded-[24px] border border-neutral-300/80 dark:border-neutral-800 transition-colors duration-300 ${
+                className={`service-accordion-item premium-surface overflow-hidden rounded-[24px] border border-neutral-300/80 dark:border-neutral-800 transition-colors duration-300 ${
                   isExpanded ? 'bg-white/60 dark:bg-[#0b1019]/60' : 'hover:bg-neutral-200/30 dark:hover:bg-neutral-900/30'
                 }`}
               >

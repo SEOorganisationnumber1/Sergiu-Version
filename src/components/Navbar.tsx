@@ -142,8 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     setServicesOpen(false);
     setMobileMenuOpen(false);
     setMobileServicesOpen(false);
-    navigateToSection('#services');
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent('nxt:open-service', { detail: { id: serviceId } })), 140);
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent('nxt:open-service', { detail: { id: serviceId } })), 80);
   };
 
   const sectionHref = (id: string) => `${isPricingPage ? '/' : ''}#${id}`;
@@ -178,7 +177,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           event.currentTarget.style.setProperty('--nav-tilt-x', '0deg');
           event.currentTarget.style.setProperty('--nav-tilt-y', '0deg');
         }}
-        className={`nav-capsule relative mx-auto flex h-[62px] max-w-[1160px] items-center justify-between rounded-full border px-3 shadow-lg shadow-black/[0.04] transition-[background-color,border-color,box-shadow,height] duration-500 ease-[cubic-bezier(.22,1,.36,1)] sm:px-6 ${scrolled ? 'nav-capsule-scrolled' : ''}`}
+        className={`nav-capsule relative z-[60] mx-auto flex h-[62px] max-w-[1160px] items-center justify-between rounded-full border px-3 shadow-lg shadow-black/[0.04] transition-[background-color,border-color,box-shadow,height] duration-500 ease-[cubic-bezier(.22,1,.36,1)] sm:px-6 ${scrolled ? 'nav-capsule-scrolled' : ''}`}
       >
         {/* Brand Logo - NXT/STUDIO */}
         <a
@@ -295,7 +294,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {servicesOpen && <div id="services-mega" role="region" aria-label="Services overview" className="services-mega mx-auto mt-2 max-w-[1160px] overflow-hidden rounded-[28px] border p-7 shadow-2xl sm:p-10">
+      {servicesOpen && <button type="button" className="services-mega-backdrop" aria-label="Close services menu" onClick={() => setServicesOpen(false)} />}
+      {servicesOpen && <div id="services-mega" role="region" aria-label="Services overview" className="services-mega relative z-[50] mx-auto mt-2 max-w-[1160px] overflow-hidden rounded-[28px] border p-7 shadow-2xl sm:p-10">
         <div className="mb-6 flex items-end justify-between"><div><p className="mb-2 text-[10px] font-mono uppercase tracking-[.22em] text-[#00736e] dark:text-[#00cfc8]">What we do</p><h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-3xl">Digital systems built to compound.</h2></div><button onClick={() => setServicesOpen(false)} className="rounded-full border border-neutral-300 p-2 dark:border-white/15" aria-label="Close services"><X size={16} /></button></div>
         <div className="grid gap-3 sm:grid-cols-3">{[
           ['01', 'Search & SEO', 'Technical SEO, AEO and GEO infrastructure.', 's1'],
@@ -305,7 +305,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>}
 
       {/* Mobile Drawer Menu */}
-      <OverlayScrollArea id="mobile-navigation" aria-hidden={!mobileMenuOpen} inert={!mobileMenuOpen} className={`mobile-navigation xl:hidden fixed inset-x-0 top-[76px] bottom-0 z-[60] border-t border-neutral-300/70 bg-[#e9eef2] shadow-2xl dark:border-white/10 dark:bg-[#080c12] ${mobileMenuOpen ? 'is-open' : ''}`} contentClassName="mobile-navigation-content h-full overflow-y-auto overscroll-contain px-5 pb-7 pt-5">
+      <OverlayScrollArea id="mobile-navigation" aria-hidden={!mobileMenuOpen} inert={!mobileMenuOpen} className={`mobile-navigation xl:hidden fixed left-3 right-3 top-[84px] bottom-3 z-[60] rounded-[26px] border border-neutral-300/70 shadow-2xl sm:left-6 sm:right-6 dark:border-white/10 ${mobileMenuOpen ? 'is-open' : ''}`} contentClassName="mobile-navigation-content h-full overflow-y-auto overscroll-contain rounded-[26px] px-5 pb-7 pt-5">
           <div className="mobile-navigation-inner relative mx-auto flex min-h-full max-w-xl flex-col">
             <div className="mobile-navigation-heading mb-4 flex items-center justify-between text-[10px] font-mono uppercase tracking-[.18em] text-neutral-500 dark:text-neutral-400">
               <span className="text-[#00736e] dark:text-[#00cfc8]">NXT/STUDIO — MENU</span><span>01 — 05</span>

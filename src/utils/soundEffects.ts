@@ -15,7 +15,28 @@ class SoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume().catch(() => {
+        // A later trusted gesture can retry after browser autoplay policy blocks this one.
+      });
+    }
+  }
+
+  public unlock() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'running') return;
+
+    // A silent buffer primes Web Audio on mobile browsers during the user's first touch.
+    try {
+      const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.ctx.destination);
+      source.start();
+      source.disconnect();
+    } catch {
+      // The normal click sound can retry initialization on the next interaction.
     }
   }
 

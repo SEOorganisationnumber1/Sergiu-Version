@@ -175,7 +175,7 @@ export const InsightsSection: React.FC = () => {
 
       {/* Article Detail Modal */}
       {selectedArticle && createPortal(
-        <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 ${isArticleClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) closeArticle(); }}>
+        <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 ${isArticleClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) closeArticle(); }}>
           <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="article-modal-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-2xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-700 dark:bg-[#0c121e] ${isArticleClosing ? 'is-closing' : ''}`} contentClassName="modal-content-flow max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-10" overlay={
             <button
               type="button"

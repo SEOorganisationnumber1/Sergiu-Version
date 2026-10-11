@@ -163,7 +163,7 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
           {/* Controls: Category Filter + View Switcher */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Categories */}
-            <div ref={filtersRef} className="work-filter-group relative isolate flex flex-wrap items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-200/70 p-1 dark:border-neutral-800 dark:bg-neutral-900/80" role="group" aria-label="Filter projects by category">
+            <div ref={filtersRef} className="work-filter-group relative isolate flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto rounded-full border border-neutral-300 bg-neutral-200/70 p-1 dark:border-neutral-800 dark:bg-neutral-900/80 sm:w-auto sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filter projects by category">
               <span ref={filterThumbRef} aria-hidden="true" className="work-filter-thumb absolute left-0 top-0 z-0 rounded-full bg-[#00cfc8]" />
               {categories.map((cat) => (
                 <button
@@ -175,7 +175,7 @@ export const WorkShowcase: React.FC<WorkShowcaseProps> = ({ onSelectProject }) =
                     setActiveCategory(cat);
                   }}
                   onMouseEnter={() => sounds.playHover()}
-                  className={`work-filter-button rounded-full px-3 py-1.5 text-xs font-mono tracking-tight transition-all duration-200 ${
+                  className={`work-filter-button shrink-0 rounded-full px-3 py-1.5 text-xs font-mono tracking-tight transition-all duration-200 ${
                     activeCategory === cat
                       ? 'text-[#07111a] font-bold'
                       : 'text-neutral-600 dark:text-neutral-400 hover:text-[#070b12] dark:hover:text-white'

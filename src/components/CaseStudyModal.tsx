@@ -61,7 +61,7 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
   if (!project) return null;
 
   return (
-    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
+    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
       <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="case-study-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-4xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-800 dark:bg-[#090e16] ${isClosing ? 'is-closing' : ''}`} contentClassName="modal-content-flow max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-10" overlay={
         <button
           type="button"

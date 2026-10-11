@@ -16,6 +16,7 @@ import { Footer } from './components/Footer';
 import { ProjectModal } from './components/ProjectModal';
 import { CaseStudyModal } from './components/CaseStudyModal';
 import { ScrollReveal } from './components/ScrollReveal';
+import { sounds } from './utils/soundEffects';
 
 const isPricingPath = (pathname: string) => pathname.replace(/\/$/, '') === '/pricing';
 
@@ -117,10 +118,29 @@ export const App: React.FC = () => {
   }, [isPricingPage]);
 
   useEffect(() => {
+    const unlockAudio = (event: PointerEvent | TouchEvent) => {
+      if (event.isTrusted) sounds.unlock();
+    };
+    document.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+    document.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlockAudio, true);
+      document.removeEventListener('touchstart', unlockAudio, true);
+    };
+  }, []);
+
+  useEffect(() => {
     const hash = window.location.hash;
     if (!hash) return;
     let targetId = hash.slice(1);
     try { targetId = decodeURIComponent(targetId); } catch { /* Use the literal fragment when it contains invalid escapes. */ }
+    const serviceMatch = targetId.match(/^service-(s[1-5])$/);
+    if (serviceMatch) {
+      const serviceFrame = window.requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent('nxt:open-service', { detail: { id: serviceMatch[1] } }));
+      });
+      return () => window.cancelAnimationFrame(serviceFrame);
+    }
     let frameId = 0;
     const timeoutId = window.setTimeout(() => {
       frameId = window.requestAnimationFrame(() => {

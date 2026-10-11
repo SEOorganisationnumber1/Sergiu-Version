@@ -98,7 +98,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, ini
   const emailDraftHref = `mailto:partner@nxtstudio.agency?subject=${subject}&body=${body}`;
 
   return (
-    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
+    <div className={`modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 ${isClosing ? 'is-closing' : ''}`} onPointerDown={(event) => { if (event.isPrimary && event.target === event.currentTarget) requestClose(); }}>
       <OverlayScrollArea role="dialog" aria-modal="true" aria-labelledby="project-modal-title" className={`modal-panel relative max-h-[92dvh] w-full max-w-2xl rounded-[28px] border border-slate-300/80 bg-[#e9eef2] shadow-2xl dark:border-neutral-800 dark:bg-[#090e16] ${isClosing ? 'is-closing' : ''}`} contentClassName="max-h-[calc(92dvh-2px)] overflow-y-auto overscroll-contain p-5 sm:p-8" overlay={
         <button type="button" onClick={requestClose} aria-label="Close" className="absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full border border-neutral-300 bg-[#e9eef2]/90 text-neutral-600 shadow-sm transition-colors hover:border-[#00cfc8] hover:text-[#00aaa4] dark:border-neutral-700 dark:bg-[#090e16]/90 dark:text-neutral-300 sm:right-6 sm:top-6">
           <X size={18} />
